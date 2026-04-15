@@ -49,10 +49,12 @@ def unload_chatbot():
 def get_farming_advice(question: str) -> str:
     question_lower = question.lower().strip()
 
-    # Check predefined responses first
-    for key, response in PREDEFINED.items():
-        if key in question_lower:
-            return response
+    # Check predefined responses first (exact word matching)
+    question_words = question_lower.split()
+
+    # Check for exact greetings
+    if question_lower in ["hello", "hi", "help"]:
+        return PREDEFINED.get(question_lower, PREDEFINED["help"])
 
     # Build prompt with context
     prompt = (
