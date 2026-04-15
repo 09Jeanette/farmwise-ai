@@ -15,12 +15,35 @@ PREDEFINED = {
     "help": "I can help you with: crop diseases, planting advice, soil preparation, pest control, and irrigation tips. Just ask!",
 }
 
-print("Loading chatbot model...")
-chatbot = pipeline(
-    "text2text-generation",
-    model="google/flan-t5-base"
-)
-print("Chatbot model loaded successfully.")
+# Lazy loading for chatbot model to reduce memory usage
+chatbot = None
+
+
+def get_chatbot():
+    global chatbot
+    if chatbot is None:
+        print("Loading chatbot model...")
+        chatbot = pipeline(
+            "text2text-generation",
+            model="google/flan-t5-base",
+            device_map="auto",  # Use GPU if available, otherwise CPU
+            torch_dtype="auto",  # Use automatic dtype for memory efficiency
+            model_kwargs={"low_cpu_mem_usage": True}
+        )
+        print("Chatbot model loaded successfully.")
+    return chatbot
+
+
+def unload_chatbot():
+    """Unload the chatbot to free memory"""
+    global chatbot
+    if chatbot is not None:
+        del chatbot
+        chatbot = None
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        print("Chatbot model unloaded to free memory.")
 
 
 def get_farming_advice(question: str) -> str:
@@ -39,6 +62,7 @@ def get_farming_advice(question: str) -> str:
     )
 
     try:
+        chatbot = get_chatbot()
         result = chatbot(
             prompt,
             max_new_tokens=200,

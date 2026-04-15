@@ -34,20 +34,49 @@ TREATMENT_TIPS = {
 
 DEFAULT_TIP = "Consult your local agricultural extension officer for treatment advice."
 
-# Load model once when the module is imported
-print("Loading plant disease model...")
-classifier = pipeline(
-    "image-classification",
-    model="linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification"
-)
-print("Model loaded successfully.")
+# Lazy loading for model to reduce memory usage
+classifier = None
+
+
+def get_classifier():
+    global classifier
+    if classifier is None:
+        print("Loading plant disease model...")
+        classifier = pipeline(
+            "image-classification",
+            model="linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification",
+            device_map="auto",  # Use GPU if available, otherwise CPU
+            torch_dtype="auto",  # Use automatic dtype for memory efficiency
+            model_kwargs={"low_cpu_mem_usage": True}
+        )
+        print("Model loaded successfully.")
+    return classifier
+
+
+def unload_classifier():
+    """Unload the classifier to free memory"""
+    global classifier
+    if classifier is not None:
+        del classifier
+        classifier = None
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        print("Disease model unloaded to free memory.")
 
 
 def predict_disease(img: Image.Image) -> dict:
+    classifier = get_classifier()
     results = classifier(img)
     top = results[0]
     confidence = round(float(top["score"]), 3)
     label = top["label"]
+
+    # Debug: Print the actual label returned by the model
+    print(f"Model returned label: '{label}'")
+    # Show first 5
+    print(
+        f"Available labels in TREATMENT_TIPS: {list(TREATMENT_TIPS.keys())[:5]}...")
 
     if confidence < 0.5:
         return {
@@ -57,7 +86,41 @@ def predict_disease(img: Image.Image) -> dict:
             "status": "low_confidence"
         }
 
-    tip = TREATMENT_TIPS.get(label, DEFAULT_TIP)
+    # Map model output to dictionary keys
+    label_mapping = {
+        "Corn (Maize) with Cercospora and Gray Leaf Spot": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+        "Corn (Maize) with Common Rust": "Corn_(maize)___Common_rust_",
+        "Corn (Maize) with Northern Leaf Blight": "Corn_(maize)___Northern_Leaf_Blight",
+        "Corn (Maize) Healthy": "Corn_(maize)___healthy",
+        "Apple with Apple Scab": "Apple___Apple_scab",
+        "Apple with Black Rot": "Apple___Black_rot",
+        "Apple with Cedar Apple Rust": "Apple___Cedar_apple_rust",
+        "Apple Healthy": "Apple___healthy",
+        "Grape with Black Rot": "Grape___Black_rot",
+        "Grape with Esca (Black Measles)": "Grape___Esca_(Black_Measles)",
+        "Grape with Leaf Blight (Isariopsis Leaf Spot)": "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)",
+        "Grape Healthy": "Grape___healthy",
+        "Tomato with Bacterial Spot": "Tomato___Bacterial_spot",
+        "Tomato with Early Blight": "Tomato___Early_blight",
+        "Tomato with Late Blight": "Tomato___Late_blight",
+        "Tomato with Leaf Mold": "Tomato___Leaf_Mold",
+        "Tomato with Septoria Leaf Spot": "Tomato___Septoria_leaf_spot",
+        "Tomato with Spider Mites (Two-spotted Spider Mite)": "Tomato___Spider_mites Two-spotted_spider_mite",
+        "Tomato with Target Spot": "Tomato___Target_Spot",
+        "Tomato with Yellow Leaf Curl Virus": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+        "Tomato with Mosaic Virus": "Tomato___Tomato_mosaic_virus",
+        "Tomato Healthy": "Tomato___healthy",
+        "Potato with Early Blight": "Potato___Early_blight",
+        "Potato with Late Blight": "Potato___Late_blight",
+        "Potato Healthy": "Potato___healthy",
+        "Pepper (Bell) with Bacterial Spot": "Pepper,_bell___Bacterial_spot",
+        "Pepper (Bell) Healthy": "Pepper,_bell___healthy",
+        "Bell Pepper with Bacterial Spot": "Pepper,_bell___Bacterial_spot",
+        "Bell Pepper Healthy": "Pepper,_bell___healthy"
+    }
+
+    dict_key = label_mapping.get(label, label)
+    tip = TREATMENT_TIPS.get(dict_key, DEFAULT_TIP)
     is_healthy = "healthy" in label.lower()
 
     return {

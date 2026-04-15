@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from PIL import Image
 import io
+import gc
+import os
 
-from model.predictor import predict_disease
-from chatbot.chatbot import get_farming_advice
+from model.predictor import predict_disease, unload_classifier
+from chatbot.chatbot import get_farming_advice, unload_chatbot
 
 app = FastAPI(
     title="FarmWise AI API",
@@ -43,11 +45,12 @@ async def predict(file: UploadFile = File(...)):
 
     try:
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not read image file")
-
-    result = predict_disease(img)
-    return result
+        result = predict_disease(img)
+        return result
+    finally:
+        # Clean up image and force garbage collection
+        del img
+        gc.collect()
 
 
 class ChatRequest(BaseModel):
@@ -59,8 +62,24 @@ def chat(req: ChatRequest):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
-    answer = get_farming_advice(req.question.strip())
-    return {
-        "answer": answer,
-        "is_ai": True
-    }
+    try:
+        answer = get_farming_advice(req.question.strip())
+        return {
+            "answer": answer,
+            "is_ai": True
+        }
+    finally:
+        # Force garbage collection to free memory
+        gc.collect()
+
+
+@app.post("/memory/cleanup")
+def memory_cleanup():
+    """Endpoint to manually free memory by unloading models"""
+    try:
+        unload_classifier()
+        unload_chatbot()
+        gc.collect()
+        return {"message": "Memory cleanup completed", "status": "success"}
+    except Exception as e:
+        return {"message": f"Cleanup failed: {str(e)}", "status": "error"}
