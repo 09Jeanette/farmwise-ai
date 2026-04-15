@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+*.h5
+*.pkl
+model/PlantVillage/
+.DS_Store
+*.egg-info/
+dist/
+build/
+.idea/
+.vscode/
