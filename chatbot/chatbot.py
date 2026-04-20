@@ -19,13 +19,20 @@ PREDEFINED = {
 chatbot = None
 
 
+def warmup_chatbot():
+    """Warm up the chatbot model during application startup"""
+    print("Warming up chatbot model...")
+    get_chatbot()
+    print("Chatbot model warmed up successfully.")
+
+
 def get_chatbot():
     global chatbot
     if chatbot is None:
         print("Loading chatbot model...")
         chatbot = pipeline(
             "text2text-generation",
-            model="google/flan-t5-base",
+            model="google/flan-t5-small",  # Smaller model (~60MB vs 250MB)
             device_map="auto",  # Use GPU if available, otherwise CPU
             torch_dtype="auto",  # Use automatic dtype for memory efficiency
             model_kwargs={"low_cpu_mem_usage": True}

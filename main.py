@@ -7,7 +7,7 @@ import gc
 import os
 
 from model.predictor import predict_disease, unload_classifier
-from chatbot.chatbot import get_farming_advice, unload_chatbot
+from chatbot.chatbot import get_farming_advice, unload_chatbot, warmup_chatbot
 
 app = FastAPI(
     title="FarmWise AI API",
@@ -21,6 +21,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Warm up models during application startup"""
+    warmup_chatbot()
 
 
 @app.get("/")
